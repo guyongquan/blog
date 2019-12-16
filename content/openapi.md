@@ -186,6 +186,8 @@ swagger系列工具是OpenAPI的实现之一。
   ![VSCode输入提示](/images/openapi/vscode-typing.png)
 而对于*.oas3schema.json的文件，则会使用schema.json中/definitions/Components/properties/schemas定义的。  
 这是为了方便编写对象定义文件，后面会提到。
+上面的配置中url指向的都是github上的内容，因为国内访问github不稳定，所以也可以把文档下载下来配置本地路径。  
+本地路径可以是相对于VSCode工作空间的相对路径，详情参考VSCode文档[Mapping to a schema in the workspace](https://code.visualstudio.com/docs/languages/json#_mapping-to-a-schema-in-the-workspace)。
 ### 安装插件[OpenAPI (Swagger) Editor](https://marketplace.visualstudio.com/items?itemName=42Crunch.vscode-openapi)  
   具体用法参照插件页面。  
 
@@ -224,7 +226,12 @@ swagger系列工具是OpenAPI的实现之一。
 }
 ```
 
-### 对象复用示例
+### 对象复用
+#### 对象复用概述
+OpenAPI中可以在components节点下定义可复用对象。  
+从components节点下弹出的输入提示我们可以看到OpenAPI3中的可复用对象类型：
+![components下的节点](/images/openapi/components.png)
+#### 对象复用示例
 下面的例子中在components下定义了一个名为uuid的参数，和一个名为UserInfo的schema对象。
 并在多处引用。
 ```json
@@ -726,3 +733,93 @@ class Type2 extneds Base {
 ```
 上述Type1和Type2的schema定义中，都使用了只有一个值的enum来实现常量。
 这是因为当前版本（3.0.2）的OpenAPI schema object中没有const，后续[3.1版本会引入const value](https://github.com/OAI/OpenAPI-Specification/issues/1313#issuecomment-335898974)。
+### 跨文件引用schema定义
+在实际的产品开发中，会有不同的API需要放到不同的文件里，但是这些API又有相同的data type定义。  
+对于这样的情况，比较合适的做法是把data type定义放到单独的文件中，然后通过[$ref](http://spec.openapis.org/oas/v3.0.2#reference-object)引用。  
+在前面的示例中已经出现过#/components/schemas/xxxx这样的ref，这样的ref都是相对引用，引用的是当前文档中的对象。  
+ref也可以引用其它文件中的对象。下面是一个简单的示例：  
+三个文件：
+
+* datatypes.oas3schema.json，包含datatype定义，其中定义了一个名为CommonType1的类型。
+* moduleA.oas3.json，moduleA API定义。
+* moduleB.oas3.json，moduleB API定义。
+
+moduleA和ModuleB中都引用了datatypes.oas3schema.json#/CommonType1。
+
+datatypes.oas3schema.json：  
+只用于定义data type，没有写任何的API定义，它的内容结构跟其它两个文件不一样。  
+```json
+{
+    "CommonType1": {
+        "type": "object",
+        "properties": {
+            "p1": {
+                "type": "string"
+            },
+            "p2": {
+                "type": "number"
+            }
+        }
+    }
+}
+```
+moduleA.oas3.json：
+```json
+{
+    "openapi": "3.0.2",
+    "info": {
+        "title": "Module A",
+        "version": "0.0.1"
+    },
+    "paths": {
+        "/moduleA": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "description": "module A 200 response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "datatypes.oas3schema.json#/CommonType1"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+```
+moduleB.oas3.json：
+```json
+{
+    "openapi": "3.0.2",
+    "info": {
+        "title": "Module B",
+        "version": "0.0.1"
+    },
+    "paths": {
+        "/moduleB": {
+            "post": {
+                "requestBody":{
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "datatypes.oas3schema.json#/CommonType1"
+                            }
+                        }
+
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "module B 201 response"
+                    }
+                }
+            }
+        }
+    }
+}
+```
+

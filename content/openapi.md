@@ -112,7 +112,7 @@ JSON schema 是一个规范，用于描述JSON对象结构：一个JSON对象有
 3. price：价格，浮点型  
 4. tags：标签，字符串数组，长度至少为1，元素不能重复  
 
-JSON schema就是用于表达上述信息：
+JSON schema就是用于表达上述信息的：
 ```json
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
@@ -823,3 +823,88 @@ moduleB.oas3.json：
 }
 ```
 
+### 再谈allOf,oneOf
+[allOf](https://tools.ietf.org/html/draft-wright-json-schema-validation-00#section-5.22)和[oneOf](https://tools.ietf.org/html/draft-wright-json-schema-validation-00#section-5.24)都是是JSON schema规范中定义的关键字，都是一个数组，数组中的元素都是JSON schema对象。allOf的作用是要求JSON对象符合这个数组中所有JSON schema的定义，oneOf要求JSON对象符合数组中其中一个并且只能符合其中一个JSON schema的定义。  
+举个关于allOf的例子，如果要求密码符合下列要求：
+
+* 类型是字符串
+* 只能包含大写字母小写字母和数字
+* 必须包含大写字母小写字母和数字
+* 不能是完全相同的字符比如aaaaa
+
+要定义一个Password，除了写一个超级复杂的正则表达式之外，还可以这样： 
+```json
+{
+    "openapi": "3.0.2",
+    "info": {
+        "title": "allOf example",
+        "version": "0.0.1"
+    },
+    "paths": {
+        "/password": {
+            "put": {
+                "description": "update password",
+                "requestBody":{
+                    "content": {
+                        "text/plain": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Password"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": {
+                        "description": "success"
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "Password": {
+                "allOf": [
+                    {
+                        "type": "string"
+                    },
+                    {
+                        "description": "只能包含大小写字母和数字",
+                        "pattern": "^[A-Za-z0-9]*$"
+                    },
+                    {
+                        "description": "必须包含大写字母",
+                        "pattern": "^.*[A-Z]+.*$"
+                    },
+                    {
+                        "description": "必须包含小写字母",
+                        "pattern": "^.*[a-z]+.*$"
+                    },
+                    {
+                        "description": "必须包含数字",
+                        "pattern": "^.*[0-9]+.*$"
+                    },
+                    {
+                        "description": "不能是完全重复的字符",
+                        "not": {
+                            "pattern": "^(.)\\1+$"
+                        }
+                    }
+                ]
+            }
+        }
+    }
+}
+```
+上述allOf数组有6个JSON schema，每一个都是一个JSON schema对象：1个type，4个pattern，1个取反的pattern。allOf要求JSON对象符合全部6个schema。  
+oneOf则要求符合其中一个并且只能是一个。anyOf则是至少一个。  
+JSON schema对象和JSON对象的基本关系有两种可能：
+
+1. JSON对象符合JSON schema
+2. JSON对象不符合JSON schema
+
+而通过allOf，oneAll，anyOf，not，可以组合出复杂的JSON schema对象，应对复杂的JSON对象结构。  
+  
+
+
+**特别注意，文中涉及到JSON schema的示例，都是以OpenAPI schema对象为基准。而不是JSON schema标准。虽然因为OpenAPI schema是JSON schema的子集，所以里面的示例也符合JSON schema标准。但是JSON schema标准不只有这些。**
